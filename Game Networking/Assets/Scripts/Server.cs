@@ -1,69 +1,89 @@
-using System;
-using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
-using System.Net;
 using System.Net.Sockets;
-using System.Text;
-
+using System.Net;
+using UnityEngine;
 
 public class Server : MonoBehaviour
 {
-    private Socket serverSocket;
-    private Socket clientSocket;
+    private Socket socket;
+    public List<Socket> clients = new List<Socket>();
+
+    public delegate void ConnectedToServer();
+    public event ConnectedToServer connectedToServer;
+
+    public static Server instance;
+
+    public bool acceptingNewClients = true;
+    public int maxClients = 3;
+
     void Start()
     {
-        serverSocket = new Socket(
-            AddressFamily.InterNetwork,
-            SocketType.Stream,
-            ProtocolType.Tcp);
-        IPEndPoint ipEndPoint = new IPEndPoint(IPAddress.Parse("192.168.1.132"), 80);
-        serverSocket.Bind(ipEndPoint);
-        serverSocket.Listen(4);
-        serverSocket.Blocking = false;
-        print("Waiting for Client");
-    }
-    void Update()
-    {
-        if (clientSocket == null)
+        if (instance == null)
         {
-            try
-            {
-                clientSocket = serverSocket.Accept();
-                print("Accepted Connection");
-                SendMessageToClient("hello Client");
-            }
-            catch
-            {
-            
-            }
+            instance = this;
+            DontDestroyOnLoad(gameObject);
+        }
+        else
+        {
+            Destroy(gameObject);
         }
 
+        socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        socket.Bind(new IPEndPoint(IPAddress.Any, 3000));
+        socket.Listen(10);
+        socket.Blocking = false;
+        Debug.Log("Server started, waiting for connections...");
+    }
+
+    private void OnDestroy()
+    {
+        socket.Close();
+    }
+
+    void Update()
+    {
+        if (acceptingNewClients) AcceptNewClients();
+        ReceiveDataFromClients();
+    }
+
+    private void AcceptNewClients()
+    {
         try
         {
-            Byte[] buffer = new byte[1024];
-            int byteCount = clientSocket.Receive(buffer);
-            string messageRecive = Encoding.ASCII.GetString(buffer, 0, byteCount);
-            Debug.Log(messageRecive);
+            Socket newClient = socket.Accept();
+            clients.Add(newClient);
+            Debug.Log("New client connected.");
+            connectedToServer?.Invoke();
         }
         catch
         {
-            
+            // No pending connections
         }
     }
 
-    void SendMessageToClient(string message)
+    private void ReceiveDataFromClients()
     {
-        byte[] messageBytes = Encoding.ASCII.GetBytes(message);
-        clientSocket.Send(messageBytes);
-    }
-
-    private void OnApplicationQuit()
-    {
-        if (clientSocket != null)
+        foreach (Socket client in clients)
         {
-            clientSocket.Close();
+            if (client.Available > 0)
+            {
+                byte[] buffer = new byte[client.Available];
+                client.Receive(buffer);
+                MessagePacket messagePacket = new MessagePacket().Deserialize(buffer);
+                Debug.Log($"Server received message from {messagePacket.playerData.name}: {messagePacket.message}");
+                BroadcastData(buffer, client);
+            }
         }
-        serverSocket.Close();
+    }
+
+    private void BroadcastData(byte[] data, Socket exceptClient)
+    {
+        foreach (Socket client in clients)
+        {
+            if (client != exceptClient)
+            {
+                client.Send(data);
+            }
+        }
     }
 }
