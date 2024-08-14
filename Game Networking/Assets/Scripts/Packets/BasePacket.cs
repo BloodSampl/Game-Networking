@@ -8,7 +8,8 @@ public class BasePacket
     public enum Type
     {
         None,
-        Message
+        Message,
+        Position
     }
 
     public Type type;

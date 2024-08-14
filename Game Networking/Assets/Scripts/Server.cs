@@ -16,7 +16,7 @@ public class Server : MonoBehaviour
     public bool acceptingNewClients = true;
     public int maxClients = 3;
 
-    void Start()
+    void Awake()
     {
         if (instance == null)
         {
@@ -29,7 +29,7 @@ public class Server : MonoBehaviour
         }
 
         socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-        socket.Bind(new IPEndPoint(IPAddress.Any, 3000));
+        socket.Bind(new IPEndPoint(IPAddress.Any, 3001));
         socket.Listen(10);
         socket.Blocking = false;
         Debug.Log("Server started, waiting for connections...");
@@ -57,7 +57,7 @@ public class Server : MonoBehaviour
         }
         catch
         {
-            // No pending connections
+            
         }
     }
 
